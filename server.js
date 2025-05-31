@@ -19,6 +19,7 @@ wss.on('connection', (ws) => {
       return;
     }
 
+    // Handle registration
     if (data.type === 'register') {
       if (data.name.includes('#1627')) {
         players[id].name = data.name.replace('#1627', '');
@@ -28,6 +29,7 @@ wss.on('connection', (ws) => {
       }
     }
 
+    // Handle movement
     if (data.type === 'move') {
       const speed = 5;
       if (data.key === 'up') players[id].y -= speed;
@@ -36,10 +38,16 @@ wss.on('connection', (ws) => {
       if (data.key === 'right') players[id].x += speed;
     }
 
+    // Handle normal chat
     if (data.type === 'chat') {
-      broadcast({ type: 'chat', name: players[id].name, message: data.message });
+      broadcast({
+        type: 'chat',
+        name: players[id].name,
+        message: data.message
+      });
     }
 
+    // Handle dev commands
     if (data.type === 'devCommand' && players[id].isDev) {
       if (data.command === 'kick') {
         const targetId = data.targetId;
@@ -58,7 +66,7 @@ wss.on('connection', (ws) => {
       if (data.command === 'broadcast') {
         broadcast({
           type: 'chat',
-          name: '[DEVELOPER]',
+          isBroadcast: true,
           message: data.message
         });
       }
@@ -70,6 +78,7 @@ wss.on('connection', (ws) => {
   });
 });
 
+// Broadcast to all connected clients
 function broadcast(data) {
   const msg = JSON.stringify(data);
   wss.clients.forEach(client => {
@@ -79,10 +88,10 @@ function broadcast(data) {
   });
 }
 
+// Send player updates ~30 times per second
 setInterval(() => {
   broadcast({ type: 'update', players });
 }, 1000 / 30);
 
 console.log('WebSocket server running on ws://localhost:3000');
-
 
