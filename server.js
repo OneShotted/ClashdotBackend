@@ -19,7 +19,6 @@ wss.on('connection', (ws) => {
       return;
     }
 
-    // Handle player registration
     if (data.type === 'register') {
       if (data.name.includes('#1627')) {
         players[id].name = data.name.replace('#1627', '');
@@ -29,7 +28,6 @@ wss.on('connection', (ws) => {
       }
     }
 
-    // Handle movement
     if (data.type === 'move') {
       const speed = 5;
       if (data.key === 'up') players[id].y -= speed;
@@ -38,39 +36,28 @@ wss.on('connection', (ws) => {
       if (data.key === 'right') players[id].x += speed;
     }
 
-    // Handle chat
     if (data.type === 'chat') {
       broadcast({ type: 'chat', name: players[id].name, message: data.message });
     }
 
-    // Developer commands
     if (data.type === 'devCommand' && players[id].isDev) {
-      // Kick command
-      if (data.command === 'kick') {
-        const targetId = data.targetId;
-        console.log(`Developer ${players[id].name} is attempting to kick ${targetId}`);
+      const { command, targetId, x, y, message } = data;
 
+      if (command === 'kick' && players[targetId]) {
         wss.clients.forEach(client => {
           if (client.readyState === WebSocket.OPEN && client.id === targetId) {
-            client.send(JSON.stringify({ type: 'kicked', reason: 'Kicked by developer.' }));
             client.close();
           }
         });
-
-        delete players[targetId];
-        broadcast({ type: 'update', players });
       }
 
-      // Teleport command
-      if (data.command === 'teleport' && players[data.targetId]) {
-        players[data.targetId].x = data.x ?? 300;
-        players[data.targetId].y = data.y ?? 300;
-        broadcast({ type: 'update', players });
+      if (command === 'teleport' && players[targetId]) {
+        players[targetId].x = typeof x === 'number' ? x : 300;
+        players[targetId].y = typeof y === 'number' ? y : 300;
       }
 
-      // Broadcast command
-      if (data.command === 'broadcast') {
-        broadcast({ type: 'chat', name: '[DEVELOPER]', message: data.message });
+      if (command === 'broadcast') {
+        broadcast({ type: 'chat', name: '[DEVELOPER]', message });
       }
     }
   });
@@ -80,7 +67,6 @@ wss.on('connection', (ws) => {
   });
 });
 
-// Broadcast helper
 function broadcast(data) {
   const msg = JSON.stringify(data);
   wss.clients.forEach(client => {
@@ -90,7 +76,6 @@ function broadcast(data) {
   });
 }
 
-// Update all clients 30 times per second
 setInterval(() => {
   broadcast({ type: 'update', players });
 }, 1000 / 30);
