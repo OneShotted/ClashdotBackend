@@ -56,7 +56,7 @@ wss.on('connection', (ws) => {
       }
 
       if (data.command === 'broadcast') {
-        broadcast({ type: 'chat', name: '[DEV]', message: data.message });
+        broadcast({ type: 'chat', name: '[DEVELOPER]', message: data.message });
       }
     }
   });
