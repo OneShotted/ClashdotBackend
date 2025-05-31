@@ -41,9 +41,8 @@ wss.on('connection', (ws) => {
     }
 
     if (data.type === 'devCommand' && players[id].isDev) {
-      const { command, targetId, x, y, message } = data;
-
-      if (command === 'kick' && players[targetId]) {
+      if (data.command === 'kick') {
+        const targetId = data.targetId;
         wss.clients.forEach(client => {
           if (client.readyState === WebSocket.OPEN && client.id === targetId) {
             client.close();
@@ -51,13 +50,17 @@ wss.on('connection', (ws) => {
         });
       }
 
-      if (command === 'teleport' && players[targetId]) {
-        players[targetId].x = typeof x === 'number' ? x : 300;
-        players[targetId].y = typeof y === 'number' ? y : 300;
+      if (data.command === 'teleport' && players[data.targetId]) {
+        players[data.targetId].x = data.x || 300;
+        players[data.targetId].y = data.y || 300;
       }
 
-      if (command === 'broadcast') {
-        broadcast({ type: 'chat', name: '[DEVELOPER]', message });
+      if (data.command === 'broadcast') {
+        broadcast({
+          type: 'chat',
+          name: '[DEVELOPER]',
+          message: data.message
+        });
       }
     }
   });
