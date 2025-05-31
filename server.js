@@ -2,12 +2,12 @@ const WebSocket = require('ws');
 const { v4: uuidv4 } = require('uuid');
 
 const wss = new WebSocket.Server({ port: 3000 });
-const players = new Map();
+const players = {};
+const devs = new Set();
 
 wss.on('connection', (ws) => {
   const id = uuidv4();
-  const player = { x: 300, y: 300, name: 'Player', id };
-  players.set(ws, player);
+  players[id] = { x: 300, y: 300, name: `Player`, id };
 
   ws.send(JSON.stringify({ type: 'id', id }));
 
@@ -19,29 +19,53 @@ wss.on('connection', (ws) => {
       return;
     }
 
-    const player = players.get(ws);
-    if (!player) return;
-
     if (data.type === 'register') {
-      player.name = data.name;
+      players[id].name = data.name;
+      if (data.isDev) {
+        devs.add(id);
+      }
     }
 
     if (data.type === 'move') {
       const speed = 5;
-      if (data.key === 'up') player.y -= speed;
-      if (data.key === 'down') player.y += speed;
-      if (data.key === 'left') player.x -= speed;
-      if (data.key === 'right') player.x += speed;
+      if (data.key === 'up') players[id].y -= speed;
+      if (data.key === 'down') players[id].y += speed;
+      if (data.key === 'left') players[id].x -= speed;
+      if (data.key === 'right') players[id].x += speed;
     }
 
     if (data.type === 'chat') {
-      broadcast({ type: 'chat', name: player.name, message: data.message });
+      broadcast({ type: 'chat', name: players[id].name, message: data.message });
+    }
+
+    if (data.type === 'dev' && devs.has(id)) {
+      if (data.action === 'teleport') {
+        players[id].x = data.x;
+        players[id].y = data.y;
+      } else if (data.action === 'kick') {
+        for (const pid in players) {
+          if (players[pid].name === data.targetName) {
+            broadcast({ type: 'chat', name: '[SERVER]', message: `${data.targetName} was kicked.` });
+            wss.clients.forEach(client => {
+              if (client.readyState === WebSocket.OPEN && client.id === pid) {
+                client.close();
+              }
+            });
+            delete players[pid];
+          }
+        }
+      } else if (data.action === 'broadcast') {
+        broadcast({ type: 'chat', name: '[SERVER]', message: data.message });
+      }
     }
   });
 
   ws.on('close', () => {
-    players.delete(ws);
+    delete players[id];
+    devs.delete(id);
   });
+
+  ws.id = id;
 });
 
 function broadcast(data) {
@@ -54,11 +78,7 @@ function broadcast(data) {
 }
 
 setInterval(() => {
-  const allPlayers = {};
-  players.forEach((p) => {
-    allPlayers[p.id] = { x: p.x, y: p.y, name: p.name };
-  });
-  broadcast({ type: 'update', players: allPlayers });
+  broadcast({ type: 'update', players });
 }, 1000 / 30);
 
 console.log('WebSocket server running on ws://localhost:3000');
