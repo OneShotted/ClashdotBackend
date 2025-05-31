@@ -6,7 +6,9 @@ const players = {};
 
 wss.on('connection', (ws) => {
   const id = uuidv4();
+  ws.id = id;
   players[id] = { x: 300, y: 300, name: 'Player', id, isDev: false };
+
   ws.send(JSON.stringify({ type: 'id', id }));
 
   ws.on('message', (message) => {
@@ -39,9 +41,10 @@ wss.on('connection', (ws) => {
     }
 
     if (data.type === 'devCommand' && players[id].isDev) {
-      if (data.command === 'kick' && players[data.targetId]) {
+      if (data.command === 'kick') {
+        const targetId = data.targetId;
         wss.clients.forEach(client => {
-          if (client.readyState === WebSocket.OPEN && players[data.targetId] && players[data.targetId].id === data.targetId) {
+          if (client.readyState === WebSocket.OPEN && client.id === targetId) {
             client.close();
           }
         });
@@ -59,7 +62,7 @@ wss.on('connection', (ws) => {
   });
 
   ws.on('close', () => {
-    delete players[id];
+    delete players[ws.id];
   });
 });
 
@@ -77,4 +80,3 @@ setInterval(() => {
 }, 1000 / 30);
 
 console.log('WebSocket server running on ws://localhost:3000');
-
