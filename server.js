@@ -1,59 +1,84 @@
 const WebSocket = require('ws');
-const server = new WebSocket.Server({ port: 3000 });
 
-const players = {};
-const sockets = new Map();
+const wss = new WebSocket.Server({ port: 3000 });
 
-server.on('connection', (socket) => {
-  const id = Math.random().toString(36).substr(2, 9);
-  players[id] = { name: 'Player', x: 300, y: 300 };
-  sockets.set(socket, id);
+let players = {};
+let idCounter = 0;
 
-  socket.send(JSON.stringify({ type: 'init', id }));
+wss.on('connection', (ws) => {
+  const playerId = `player_${idCounter++}`;
+  players[playerId] = {
+    id: playerId,
+    x: 1000,
+    y: 1000,
+    name: `Player${idCounter}`,
+    ws: ws,
+  };
 
-  socket.on('message', (msg) => {
-    const data = JSON.parse(msg);
-    const id = sockets.get(socket);
+  // Send the ID back to the client
+  ws.send(JSON.stringify({ type: 'id', id: playerId }));
 
-    if (!id) return;
+  ws.on('message', (message) => {
+    try {
+      const data = JSON.parse(message);
 
-    if (data.type === 'register') {
-      players[id].name = data.name || players[id].name;
-    }
-
-    if (data.type === 'move') {
-      players[id].x = data.x;
-      players[id].y = data.y;
-    }
-
-    if (data.type === 'chat') {
-      const payload = JSON.stringify({
-        type: 'chat',
-        name: players[id].name,
-        message: data.message,
-      });
-
-      server.clients.forEach((client) => {
-        if (client.readyState === WebSocket.OPEN) {
-          client.send(payload);
+      if (data.type === 'register') {
+        if (players[playerId]) {
+          players[playerId].name = data.name;
         }
-      });
+
+      } else if (data.type === 'move') {
+        const speed = 5;
+        if (!players[playerId]) return;
+
+        if (data.key === 'ArrowUp') players[playerId].y -= speed;
+        if (data.key === 'ArrowDown') players[playerId].y += speed;
+        if (data.key === 'ArrowLeft') players[playerId].x -= speed;
+        if (data.key === 'ArrowRight') players[playerId].x += speed;
+
+      } else if (data.type === 'chat') {
+        // Broadcast chat to all players
+        const chatPayload = JSON.stringify({
+          type: 'chat',
+          name: players[playerId]?.name || 'Unknown',
+          message: data.message
+        });
+
+        for (const id in players) {
+          players[id].ws.send(chatPayload);
+        }
+      }
+
+      // Broadcast updated players list (excluding WebSocket reference)
+      const broadcastData = {
+        type: 'update',
+        players: {},
+      };
+
+      for (const id in players) {
+        broadcastData.players[id] = {
+          x: players[id].x,
+          y: players[id].y,
+          name: players[id].name,
+        };
+      }
+
+      const payload = JSON.stringify(broadcastData);
+
+      for (const id in players) {
+        players[id].ws.send(payload);
+      }
+
+    } catch (e) {
+      console.error('Invalid message received:', message);
     }
   });
 
-  socket.on('close', () => {
-    const id = sockets.get(socket);
-    delete players[id];
-    sockets.delete(socket);
+  ws.on('close', () => {
+    delete players[playerId];
   });
 });
 
-setInterval(() => {
-  const payload = JSON.stringify({ type: 'state', players });
-  server.clients.forEach((client) => {
-    if (client.readyState === WebSocket.OPEN) {
-      client.send(payload);
-    }
-  });
-}, 1000 / 20); // 20 FPS
+console.log('WebSocket server running on ws://localhost:3000');
+
 
