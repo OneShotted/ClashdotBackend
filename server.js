@@ -1,18 +1,31 @@
 const WebSocket = require('ws');
-const server = new WebSocket.Server({ port: process.env.PORT || 3000 });
+const server = new WebSocket.Server({ port: 3000 });
 
 let players = {};
 
 server.on('connection', socket => {
   const id = Math.random().toString(36).substr(2, 9);
-  players[id] = { x: 100, y: 100 };
-
-  socket.send(JSON.stringify({ type: 'init', id, players }));
 
   socket.on('message', msg => {
     const data = JSON.parse(msg);
-    if (data.type === 'move') {
-      players[id] = data.pos;
+
+    // Initial registration
+    if (data.type === 'register') {
+      players[id] = {
+        x: 100,
+        y: 100,
+        name: data.name || 'Player'
+      };
+
+      socket.send(JSON.stringify({ type: 'init', id, players }));
+      broadcast();
+      return;
+    }
+
+    // Handle movement
+    if (data.type === 'move' && players[id]) {
+      players[id].x = data.pos.x;
+      players[id].y = data.pos.y;
       broadcast();
     }
   });
@@ -31,3 +44,6 @@ server.on('connection', socket => {
     });
   }
 });
+
+console.log('WebSocket server running on ws://localhost:3000');
+
