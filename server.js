@@ -3,12 +3,10 @@ const { v4: uuidv4 } = require('uuid');
 
 const wss = new WebSocket.Server({ port: 3000 });
 const players = {};
-const devs = new Set();
 
 wss.on('connection', (ws) => {
   const id = uuidv4();
-  players[id] = { x: 300, y: 300, name: `Player`, id };
-
+  players[id] = { x: 300, y: 300, name: 'Player', id, isDev: false };
   ws.send(JSON.stringify({ type: 'id', id }));
 
   ws.on('message', (message) => {
@@ -20,9 +18,11 @@ wss.on('connection', (ws) => {
     }
 
     if (data.type === 'register') {
-      players[id].name = data.name;
-      if (data.isDev) {
-        devs.add(id);
+      if (data.name.includes('#1627')) {
+        players[id].name = data.name.replace('#1627', '');
+        players[id].isDev = true;
+      } else {
+        players[id].name = data.name;
       }
     }
 
@@ -38,34 +38,29 @@ wss.on('connection', (ws) => {
       broadcast({ type: 'chat', name: players[id].name, message: data.message });
     }
 
-    if (data.type === 'dev' && devs.has(id)) {
-      if (data.action === 'teleport') {
-        players[id].x = data.x;
-        players[id].y = data.y;
-      } else if (data.action === 'kick') {
-        for (const pid in players) {
-          if (players[pid].name === data.targetName) {
-            broadcast({ type: 'chat', name: '[SERVER]', message: `${data.targetName} was kicked.` });
-            wss.clients.forEach(client => {
-              if (client.readyState === WebSocket.OPEN && client.id === pid) {
-                client.close();
-              }
-            });
-            delete players[pid];
+    if (data.type === 'devCommand' && players[id].isDev) {
+      if (data.command === 'kick' && players[data.targetId]) {
+        wss.clients.forEach(client => {
+          if (client.readyState === WebSocket.OPEN && players[data.targetId] && players[data.targetId].id === data.targetId) {
+            client.close();
           }
-        }
-      } else if (data.action === 'broadcast') {
-        broadcast({ type: 'chat', name: '[SERVER]', message: data.message });
+        });
+      }
+
+      if (data.command === 'teleport' && players[data.targetId]) {
+        players[data.targetId].x = data.x || 300;
+        players[data.targetId].y = data.y || 300;
+      }
+
+      if (data.command === 'broadcast') {
+        broadcast({ type: 'chat', name: '[DEV]', message: data.message });
       }
     }
   });
 
   ws.on('close', () => {
     delete players[id];
-    devs.delete(id);
   });
-
-  ws.id = id;
 });
 
 function broadcast(data) {
@@ -82,3 +77,4 @@ setInterval(() => {
 }, 1000 / 30);
 
 console.log('WebSocket server running on ws://localhost:3000');
+
