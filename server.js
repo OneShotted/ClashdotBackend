@@ -20,12 +20,8 @@ wss.on('connection', (ws) => {
     }
 
     if (data.type === 'register') {
-      if (data.name.includes('#1627')) {
-        players[id].name = data.name.replace('#1627', '');
-        players[id].isDev = true;
-      } else {
-        players[id].name = data.name;
-      }
+      players[id].name = data.name;
+      players[id].isDev = data.isDev || false;
     }
 
     if (data.type === 'move') {
@@ -37,7 +33,12 @@ wss.on('connection', (ws) => {
     }
 
     if (data.type === 'chat') {
-      broadcast({ type: 'chat', name: players[id].name, message: data.message });
+      broadcast({
+        type: 'chat',
+        name: players[id].name,
+        message: data.message,
+        isDev: players[id].isDev
+      });
     }
 
     if (data.type === 'devCommand' && players[id].isDev) {
@@ -59,7 +60,8 @@ wss.on('connection', (ws) => {
         broadcast({
           type: 'chat',
           name: '[DEVELOPER]',
-          message: data.message
+          message: data.message,
+          isDev: true
         });
       }
     }
