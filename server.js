@@ -15,7 +15,6 @@ wss.on('connection', (ws) => {
     ws: ws,
   };
 
-  // Send the ID back to the client
   ws.send(JSON.stringify({ type: 'id', id: playerId }));
 
   ws.on('message', (message) => {
@@ -26,7 +25,6 @@ wss.on('connection', (ws) => {
         if (players[playerId]) {
           players[playerId].name = data.name;
         }
-
       } else if (data.type === 'move') {
         const speed = 5;
         if (!players[playerId]) return;
@@ -35,13 +33,11 @@ wss.on('connection', (ws) => {
         if (data.key === 'ArrowDown') players[playerId].y += speed;
         if (data.key === 'ArrowLeft') players[playerId].x -= speed;
         if (data.key === 'ArrowRight') players[playerId].x += speed;
-
       } else if (data.type === 'chat') {
-        // Broadcast chat to all players
         const chatPayload = JSON.stringify({
           type: 'chat',
           name: players[playerId]?.name || 'Unknown',
-          message: data.message
+          message: data.message,
         });
 
         for (const id in players) {
@@ -49,26 +45,23 @@ wss.on('connection', (ws) => {
         }
       }
 
-      // Broadcast updated players list (excluding WebSocket reference)
-      const broadcastData = {
+      // Broadcast player updates
+      const update = {
         type: 'update',
         players: {},
       };
-
       for (const id in players) {
-        broadcastData.players[id] = {
+        update.players[id] = {
           x: players[id].x,
           y: players[id].y,
           name: players[id].name,
         };
       }
 
-      const payload = JSON.stringify(broadcastData);
-
+      const updatePayload = JSON.stringify(update);
       for (const id in players) {
-        players[id].ws.send(payload);
+        players[id].ws.send(updatePayload);
       }
-
     } catch (e) {
       console.error('Invalid message received:', message);
     }
@@ -80,5 +73,4 @@ wss.on('connection', (ws) => {
 });
 
 console.log('WebSocket server running on ws://localhost:3000');
-
 
