@@ -2,11 +2,12 @@ const WebSocket = require('ws');
 const { v4: uuidv4 } = require('uuid');
 
 const wss = new WebSocket.Server({ port: 3000 });
-const players = {};
+const players = new Map();
 
 wss.on('connection', (ws) => {
   const id = uuidv4();
-  players[id] = { x: 300, y: 300, name: `Player`, id };
+  const player = { x: 300, y: 300, name: 'Player', id };
+  players.set(ws, player);
 
   ws.send(JSON.stringify({ type: 'id', id }));
 
@@ -18,26 +19,28 @@ wss.on('connection', (ws) => {
       return;
     }
 
+    const player = players.get(ws);
+    if (!player) return;
+
     if (data.type === 'register') {
-      players[id].name = data.name;
+      player.name = data.name;
     }
 
     if (data.type === 'move') {
       const speed = 5;
-      console.log(`Received move key: ${data.key}`);
-      if (data.key === 'up') players[id].y -= speed;
-      if (data.key === 'down') players[id].y += speed;
-      if (data.key === 'left') players[id].x -= speed;
-      if (data.key === 'right') players[id].x += speed;
+      if (data.key === 'up') player.y -= speed;
+      if (data.key === 'down') player.y += speed;
+      if (data.key === 'left') player.x -= speed;
+      if (data.key === 'right') player.x += speed;
     }
 
     if (data.type === 'chat') {
-      broadcast({ type: 'chat', name: players[id].name, message: data.message });
+      broadcast({ type: 'chat', name: player.name, message: data.message });
     }
   });
 
   ws.on('close', () => {
-    delete players[id];
+    players.delete(ws);
   });
 });
 
@@ -51,7 +54,11 @@ function broadcast(data) {
 }
 
 setInterval(() => {
-  broadcast({ type: 'update', players });
+  const allPlayers = {};
+  players.forEach((p) => {
+    allPlayers[p.id] = { x: p.x, y: p.y, name: p.name };
+  });
+  broadcast({ type: 'update', players: allPlayers });
 }, 1000 / 30);
 
 console.log('WebSocket server running on ws://localhost:3000');
