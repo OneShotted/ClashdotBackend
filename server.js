@@ -1,49 +1,59 @@
 const WebSocket = require('ws');
 const server = new WebSocket.Server({ port: 3000 });
 
-let players = {};
+const players = {};
+const sockets = new Map();
 
-server.on('connection', socket => {
+server.on('connection', (socket) => {
   const id = Math.random().toString(36).substr(2, 9);
+  players[id] = { name: 'Player', x: 300, y: 300 };
+  sockets.set(socket, id);
 
-  socket.on('message', msg => {
+  socket.send(JSON.stringify({ type: 'init', id }));
+
+  socket.on('message', (msg) => {
     const data = JSON.parse(msg);
+    const id = sockets.get(socket);
 
-    // Initial registration
+    if (!id) return;
+
     if (data.type === 'register') {
-      players[id] = {
-        x: 100,
-        y: 100,
-        name: data.name || 'Player'
-      };
-
-      socket.send(JSON.stringify({ type: 'init', id, players }));
-      broadcast();
-      return;
+      players[id].name = data.name || players[id].name;
     }
 
-    // Handle movement
-    if (data.type === 'move' && players[id]) {
-      players[id].x = data.pos.x;
-      players[id].y = data.pos.y;
-      broadcast();
+    if (data.type === 'move') {
+      players[id].x = data.x;
+      players[id].y = data.y;
+    }
+
+    if (data.type === 'chat') {
+      const payload = JSON.stringify({
+        type: 'chat',
+        name: players[id].name,
+        message: data.message,
+      });
+
+      server.clients.forEach((client) => {
+        if (client.readyState === WebSocket.OPEN) {
+          client.send(payload);
+        }
+      });
     }
   });
 
   socket.on('close', () => {
+    const id = sockets.get(socket);
     delete players[id];
-    broadcast();
+    sockets.delete(socket);
   });
-
-  function broadcast() {
-    const payload = JSON.stringify({ type: 'update', players });
-    server.clients.forEach(client => {
-      if (client.readyState === WebSocket.OPEN) {
-        client.send(payload);
-      }
-    });
-  }
 });
 
-console.log('WebSocket server running on ws://localhost:3000');
+setInterval(() => {
+  const payload = JSON.stringify({ type: 'state', players });
+  server.clients.forEach((client) => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(payload);
+    }
+  });
+}, 1000 / 20); // 20 FPS
 
