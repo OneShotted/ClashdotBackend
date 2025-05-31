@@ -45,14 +45,18 @@ wss.on('connection', (ws) => {
         const targetId = data.targetId;
         wss.clients.forEach(client => {
           if (client.readyState === WebSocket.OPEN && client.id === targetId) {
+            client.send(JSON.stringify({ type: 'kicked' }));
             client.close();
           }
         });
+        delete players[targetId];
+        broadcast({ type: 'update', players });
       }
 
       if (data.command === 'teleport' && players[data.targetId]) {
-        players[data.targetId].x = data.x || 300;
-        players[data.targetId].y = data.y || 300;
+        players[data.targetId].x = data.x ?? 300;
+        players[data.targetId].y = data.y ?? 300;
+        broadcast({ type: 'update', players });
       }
 
       if (data.command === 'broadcast') {
@@ -80,3 +84,4 @@ setInterval(() => {
 }, 1000 / 30);
 
 console.log('WebSocket server running on ws://localhost:3000');
+
