@@ -42,7 +42,7 @@ wss.on('connection', (ws) => {
 
     else if (data.type === 'movementState') {
       if (!players[id]) return;
-      const speed = 3;
+      const speed = 6;
       const keys = data.keys || {};
 
       if (keys.up) players[id].y -= speed;
