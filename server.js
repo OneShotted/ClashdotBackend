@@ -4,6 +4,7 @@ const { v4: uuidv4 } = require('uuid');
 const wss = new WebSocket.Server({ port: 8080 });
 const players = {};
 const sockets = {};
+const bots = {};
 
 console.log('Server started on port 8080');
 
@@ -43,7 +44,7 @@ wss.on('connection', (ws) => {
     else if (data.type === 'movementState') {
       if (!players[id]) return;
 
-      const speed = players[id].isDev ? 15 : 6; // ✅ Speed boost for devs
+      const speed = players[id].isDev ? 15 : 6;
       const keys = data.keys || {};
 
       if (keys.up) players[id].y -= speed;
@@ -113,7 +114,8 @@ wss.on('connection', (ws) => {
 function broadcastState() {
   const state = {
     type: 'update',
-    players
+    players,
+    bots: Object.values(bots)
   };
   broadcast(state);
 }
@@ -127,4 +129,33 @@ function broadcast(data) {
   });
 }
 
+// ========== Bot System ==========
+function spawnBot() {
+  const id = uuidv4();
+  bots[id] = {
+    id,
+    x: Math.random() * 1000,
+    y: Math.random() * 1000,
+    vx: (Math.random() - 0.5) * 1.5, // Slow movement
+    vy: (Math.random() - 0.5) * 1.5,
+  };
+}
+
+// Move bots every tick
+setInterval(() => {
+  for (const bot of Object.values(bots)) {
+    bot.x += bot.vx;
+    bot.y += bot.vy;
+
+    // Keep within bounds
+    if (bot.x < 0 || bot.x > 1000) bot.vx *= -1;
+    if (bot.y < 0 || bot.y > 1000) bot.vy *= -1;
+  }
+  broadcastState();
+}, 100);
+
+// Spawn a bot every second
+setInterval(() => {
+  spawnBot();
+}, 1000);
 
