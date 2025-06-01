@@ -1,48 +1,47 @@
 const WebSocket = require('ws');
 const { v4: uuidv4 } = require('uuid');
 
-const wss = new WebSocket.Server({ port: 8080 });
+const wss = new WebSocket.Server({ port: 3000 });
 const players = {};
-const sockets = {};
-
-console.log('Server started on port 8080');
 
 wss.on('connection', (ws) => {
   const id = uuidv4();
-  sockets[id] = ws;
+  ws.id = id;
+  players[id] = {
+    x: 300,
+    y: 300,
+    name: 'Player',
+    id,
+    isDev: false,
+    speedMultiplier: 1
+  };
+
+  ws.send(JSON.stringify({ type: 'id', id }));
 
   ws.on('message', (message) => {
     let data;
     try {
       data = JSON.parse(message);
-    } catch (err) {
-      console.error('Invalid JSON:', message);
+    } catch {
       return;
     }
 
+    // Handle registration
     if (data.type === 'register') {
-      let name = data.name;
-      let isDev = false;
-      if (name.includes('#1627')) {
-        isDev = true;
-        name = name.replace('#1627', '');
+      if (data.name.includes('#1627')) {
+        players[id].name = data.name.replace('#1627', '');
+        players[id].isDev = true;
+      } else {
+        players[id].name = data.name;
       }
-
-      players[id] = {
-        id,
-        name,
-        x: Math.random() * 1000,
-        y: Math.random() * 1000,
-        isDev
-      };
-
-      ws.send(JSON.stringify({ type: 'id', id }));
-      broadcastState();
     }
 
-    else if (data.type === 'movementState') {
+    // Handle smooth movement state updates
+    if (data.type === 'movementState') {
       if (!players[id]) return;
-      const speed = 6;
+      const baseSpeed = 6;
+      const multiplier = players[id].speedMultiplier || 1;
+      const speed = baseSpeed * multiplier;
       const keys = data.keys || {};
 
       if (keys.up) players[id].y -= speed;
@@ -53,75 +52,66 @@ wss.on('connection', (ws) => {
       broadcastState();
     }
 
-    else if (data.type === 'chat') {
-      const player = players[id];
-      if (!player) return;
-      const messageToSend = {
+    // Handle normal chat
+    if (data.type === 'chat') {
+      broadcast({
         type: 'chat',
-        name: player.name,
-        message: data.message,
-        isBroadcast: false
-      };
-      broadcast(messageToSend);
+        name: players[id].name,
+        message: data.message
+      });
     }
 
-    else if (data.type === 'devCommand') {
-      const player = players[id];
-      if (!player || !player.isDev) return;
-
+    // Handle dev commands
+    if (data.type === 'devCommand' && players[id].isDev) {
       if (data.command === 'kick') {
         const targetId = data.targetId;
-        if (players[targetId] && sockets[targetId]) {
-          sockets[targetId].close();
-          delete players[targetId];
-          delete sockets[targetId];
-          broadcastState();
-        }
+        wss.clients.forEach(client => {
+          if (client.readyState === WebSocket.OPEN && client.id === targetId) {
+            client.close();
+          }
+        });
       }
 
-      else if (data.command === 'teleport') {
-        const targetId = data.targetId;
-        const x = data.x || 0;
-        const y = data.y || 0;
-        if (players[targetId]) {
-          players[targetId].x = x;
-          players[targetId].y = y;
-          broadcastState();
-        }
+      if (data.command === 'teleport' && players[data.targetId]) {
+        players[data.targetId].x = data.x || 300;
+        players[data.targetId].y = data.y || 300;
       }
 
-      else if (data.command === 'broadcast') {
-        const message = data.message || '';
-        const broadcastMessage = {
+      if (data.command === 'broadcast') {
+        broadcast({
           type: 'chat',
-          message: `[Broadcast] ${message}`,
-          isBroadcast: true
-        };
-        broadcast(broadcastMessage);
+          isBroadcast: true,
+          message: data.message
+        });
+      }
+
+      if (data.command === 'setSpeedMultiplier' && typeof data.multiplier === 'number') {
+        if (players[data.targetId]) {
+          players[data.targetId].speedMultiplier = data.multiplier;
+        }
       }
     }
   });
 
   ws.on('close', () => {
-    delete players[id];
-    delete sockets[id];
-    broadcastState();
+    delete players[ws.id];
   });
 });
 
-function broadcastState() {
-  const state = {
-    type: 'update',
-    players
-  };
-  broadcast(state);
-}
-
 function broadcast(data) {
   const msg = JSON.stringify(data);
-  Object.values(sockets).forEach((ws) => {
-    if (ws.readyState === WebSocket.OPEN) {
-      ws.send(msg);
+  wss.clients.forEach(client => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(msg);
     }
   });
 }
+
+function broadcastState() {
+  broadcast({ type: 'update', players });
+}
+
+// 30 FPS
+setInterval(broadcastState, 1000 / 30);
+
+console.log('WebSocket server running on ws://localhost:3000');
