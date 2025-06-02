@@ -73,9 +73,19 @@ wss.on('connection', (ws) => {
       if (data.command === 'kick') {
         const targetId = data.targetId;
         if (players[targetId] && sockets[targetId]) {
-          sockets[targetId].close();
+          // Notify the target before closing
+          sockets[targetId].send(JSON.stringify({
+            type: 'kicked',
+            reason: 'You were kicked by a developer.'
+          }));
+
+          // Close the socket with a custom code
+          sockets[targetId].close(4000, 'Kicked by developer');
+
+          // Cleanup
           delete players[targetId];
           delete sockets[targetId];
+
           broadcastState();
         }
       }
@@ -126,6 +136,5 @@ function broadcast(data) {
     }
   });
 }
-
 
 
