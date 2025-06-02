@@ -31,8 +31,10 @@ wss.on('connection', (ws) => {
       players[id] = {
         id,
         name,
-        x: Math.random() * 1000,
-        y: Math.random() * 1000,
+        //x: Math.random() * 1000,
+        //y: Math.random() * 1000,
+        x: 0,
+        y: 0,
         isDev
       };
 
