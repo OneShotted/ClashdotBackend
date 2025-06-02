@@ -43,7 +43,7 @@ wss.on('connection', (ws) => {
     else if (data.type === 'movementState') {
       if (!players[id]) return;
 
-      const speed = players[id].isDev ? 2 : 3; // ✅ Speed boost for devs
+      const speed = players[id].isDev ? 2 : 15; // ✅ Speed boost for devs
       const keys = data.keys || {};
 
       if (keys.up) players[id].y -= speed;
