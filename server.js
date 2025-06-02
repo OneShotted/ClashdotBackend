@@ -95,7 +95,7 @@ wss.on('connection', (ws) => {
         const message = data.message || '';
         const broadcastMessage = {
           type: 'chat',
-          message: `[Broadcast] {message}`,
+          message: `[Broadcast] ${message}`,
           isBroadcast: true
         };
         broadcast(broadcastMessage);
