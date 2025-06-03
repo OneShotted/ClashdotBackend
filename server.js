@@ -41,7 +41,11 @@ wss.on('connection', (ws) => {
       ws.send(JSON.stringify({ type: 'id', id }));
       broadcastState();
     }
-
+    else if (data.type === 'leaveGame') {
+      delete players[id];
+      delete sockets[id];
+      broadcastState();
+    }
     else if (data.type === 'movementState') {
       if (!players[id]) return;
 
